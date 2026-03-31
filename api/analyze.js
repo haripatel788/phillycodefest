@@ -97,6 +97,18 @@ const DEMO_RESPONSE = {
   tone_note: 'Take a breath, arrive early, and focus on listening closely to each instruction from the court.',
 };
 
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  });
+}
+
 function looksLikeCourtNotice(text) {
   return /court|judge|hearing|arraignment|defendant|commonwealth|docket|criminal|case\s+number/i.test(text);
 }
@@ -111,9 +123,7 @@ async function runOcrSpace({ imageBase64, imageMimeType }) {
 
   const response = await fetch('https://api.ocr.space/parse/image', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: formData,
   });
 
@@ -132,9 +142,7 @@ async function runOcrSpace({ imageBase64, imageMimeType }) {
 }
 
 function extractJson(raw) {
-  if (!raw) {
-    throw new Error('Empty response from language model.');
-  }
+  if (!raw) throw new Error('Empty response from language model.');
 
   const clean = String(raw).replace(/```json|```/g, '').trim();
 
@@ -146,7 +154,6 @@ function extractJson(raw) {
     if (start >= 0 && end > start) {
       return JSON.parse(clean.slice(start, end + 1));
     }
-
     throw new Error('Response was not valid JSON.');
   }
 }
@@ -157,9 +164,7 @@ function dedupeStrings(values = []) {
 
 function normalizeResponse(payload) {
   if (payload?.error) {
-    return {
-      error: "This doesn't look like a court notice. Please upload your official court document.",
-    };
+    return { error: "This doesn't look like a court notice. Please upload your official court document." };
   }
 
   const extracted = payload?.extracted || {};
@@ -206,7 +211,7 @@ async function callOpenRouter(documentText) {
     headers: {
       Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
       'Content-Type': 'application/json',
-      'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'https://courtdatecoach.local',
+      'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'https://courtdatecoach.vercel.app',
       'X-Title': 'Court Date Coach',
     },
     body: JSON.stringify({
@@ -250,9 +255,7 @@ async function callGroq(documentText) {
       ],
       temperature: 0.2,
       max_tokens: 1400,
-      response_format: {
-        type: 'json_object',
-      },
+      response_format: { type: 'json_object' },
     }),
   });
 
@@ -269,22 +272,38 @@ async function analyzeWithFreeModel(documentText) {
   if (process.env.OPENROUTER_API_KEY) {
     return extractJson(await callOpenRouter(documentText));
   }
-
   if (process.env.GROQ_API_KEY) {
     return extractJson(await callGroq(documentText));
   }
-
-  // Keeps hackathon demo running even if keys are not configured yet.
   return DEMO_RESPONSE;
 }
 
-export default async function handler(req, res) {
+// Vercel Edge/Serverless with "type": "module" uses Web API Request/Response
+export default async function handler(req) {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      },
+    });
+  }
+
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return jsonResponse({ error: 'Method not allowed' }, 405);
   }
 
   try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return jsonResponse({ error: 'Invalid JSON body.' }, 400);
+    }
+
     let documentText = body?.documentText?.trim() || '';
 
     if (!documentText && body?.imageBase64) {
@@ -295,23 +314,27 @@ export default async function handler(req, res) {
     }
 
     if (!documentText) {
-      return res.status(400).json({ error: 'No readable text found. Upload a file or paste text first.' });
+      return jsonResponse({ error: 'No readable text found. Upload a file or paste text first.' }, 400);
     }
 
     if (!looksLikeCourtNotice(documentText)) {
-      return res
-        .status(200)
-        .json({ error: "This doesn't look like a court notice. Please upload your official court document." });
+      return jsonResponse({
+        error: "This doesn't look like a court notice. Please upload your official court document.",
+      });
     }
 
     const raw = await analyzeWithFreeModel(documentText);
     const normalized = normalizeResponse(raw);
 
-    return res.status(200).json(normalized);
+    return jsonResponse(normalized);
   } catch (error) {
-    return res.status(500).json({
-      error: 'We could not analyze this notice right now. Please try again.',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
-    });
+    console.error('[analyze] Error:', error);
+    return jsonResponse(
+      {
+        error: 'We could not analyze this notice right now. Please try again.',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      },
+      500,
+    );
   }
 }

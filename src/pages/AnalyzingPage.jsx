@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCourtCoach } from '../context/CourtCoachContext';
 import { analyzeCourtNotice } from '../lib/analyzeClient';
@@ -28,6 +28,7 @@ export default function AnalyzingPage() {
   const navigate = useNavigate();
   const { state, setAnalysis, setError, setIsLoading } = useCourtCoach();
   const [statusIndex, setStatusIndex] = useState(0);
+  const hasStartedRef = useRef(false);
   const rotateMessage = useMemo(() => statusMessages[statusIndex], [statusIndex]);
 
   useEffect(() => {
@@ -35,6 +36,11 @@ export default function AnalyzingPage() {
       navigate('/upload', { replace: true });
       return;
     }
+
+    if (hasStartedRef.current) {
+      return;
+    }
+    hasStartedRef.current = true;
 
     let mounted = true;
     const timer = setInterval(() => {

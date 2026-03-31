@@ -1,14 +1,29 @@
 import { mockAnalysis } from './mockAnalysis';
 
 export async function analyzeCourtNotice(payload) {
-  const endpoint = import.meta.env.VITE_ANALYZE_ENDPOINT || '/api/analyze';
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  const explicitEndpoint = import.meta.env.VITE_ANALYZE_ENDPOINT;
+  const endpoint = explicitEndpoint || '/api/analyze';
+
+  // Vite dev does not run /api routes by default.
+  if (import.meta.env.DEV && !explicitEndpoint) {
+    return mockAnalysis;
+  }
+
+  let response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    if (import.meta.env.DEV) {
+      return mockAnalysis;
+    }
+    throw new Error('Could not reach the analyze API.');
+  }
 
   if (response.status === 404 && import.meta.env.DEV) {
     return mockAnalysis;

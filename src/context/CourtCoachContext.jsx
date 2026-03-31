@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 
 const CourtCoachContext = createContext(null);
 
@@ -15,36 +15,58 @@ const baseState = {
 export function CourtCoachProvider({ children }) {
   const [state, setState] = useState(baseState);
 
+  const setUpload = useCallback(
+    (upload) =>
+      setState((prev) => ({
+        ...prev,
+        upload,
+        error: '',
+      })),
+    [],
+  );
+
+  const setAnalysis = useCallback(
+    (analysis) =>
+      setState((prev) => ({
+        ...prev,
+        analysis,
+        error: '',
+        isLoading: false,
+      })),
+    [],
+  );
+
+  const setError = useCallback(
+    (error) =>
+      setState((prev) => ({
+        ...prev,
+        error,
+        isLoading: false,
+      })),
+    [],
+  );
+
+  const setIsLoading = useCallback(
+    (isLoading) =>
+      setState((prev) => ({
+        ...prev,
+        isLoading,
+      })),
+    [],
+  );
+
+  const startOver = useCallback(() => setState(baseState), []);
+
   const value = useMemo(
     () => ({
       state,
-      setUpload: (upload) =>
-        setState((prev) => ({
-          ...prev,
-          upload,
-          error: '',
-        })),
-      setAnalysis: (analysis) =>
-        setState((prev) => ({
-          ...prev,
-          analysis,
-          error: '',
-          isLoading: false,
-        })),
-      setError: (error) =>
-        setState((prev) => ({
-          ...prev,
-          error,
-          isLoading: false,
-        })),
-      setIsLoading: (isLoading) =>
-        setState((prev) => ({
-          ...prev,
-          isLoading,
-        })),
-      startOver: () => setState(baseState),
+      setUpload,
+      setAnalysis,
+      setError,
+      setIsLoading,
+      startOver,
     }),
-    [state],
+    [setAnalysis, setError, setIsLoading, setUpload, startOver, state],
   );
 
   return <CourtCoachContext.Provider value={value}>{children}</CourtCoachContext.Provider>;

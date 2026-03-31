@@ -79,6 +79,7 @@ export default function AnalyzingPage() {
 
     return () => {
       mounted = false;
+      hasStartedRef.current = false;
       clearInterval(timer);
     };
   }, [navigate, setAnalysis, setError, setIsLoading, state.upload]);

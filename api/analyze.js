@@ -163,11 +163,9 @@ function normalizeResponse(payload) {
   }
 
   const extracted = payload?.extracted || {};
-  const safeHearingType = ['arraignment', 'preliminary hearing', 'trial', 'sentencing', 'other', 'unknown'].includes(
-    extracted.hearing_type,
-  )
-    ? extracted.hearing_type
-    : 'unknown';
+  const hearingTypeCandidate = extracted.hearing_type?.toLowerCase?.();
+  const heardTypes = ['arraignment', 'preliminary hearing', 'trial', 'sentencing', 'other', 'unknown'];
+  const safeHearingType = heardTypes.includes(hearingTypeCandidate) ? hearingTypeCandidate : 'unknown';
 
   const sayThis = dedupeStrings(payload?.say_this).filter((line) => !/should\s+plead/i.test(line));
 
